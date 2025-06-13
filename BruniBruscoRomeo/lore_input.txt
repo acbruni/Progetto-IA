@@ -68,14 +68,10 @@ The realm of **Eldoria**, a land of ancient ruins, mystical creatures, and resid
 **Preconditions and Effects:**
 
 * To enter the cave: Must possess and activate the Rune of Passage.
-* To activate the Rune: Must place it on the altar with the Sacred Stone.
-* To enter the temple: Must defeat/evade the Guardian Golem and find the glade.
-* To open the secret door: Must find the Temple Key inside the temple.
+* To defeat the Guardian Golem: Possess and activate the Rune of Passage.
+* To acquire the amulet: Possess and activate the Rune of Passage.
+* To unlock the secret door: Possess and activate the Rune of Passage.
 
-**Adjusted Precondition for Acquire-Amulet Action:**
+**Rule Adjustment for Acquire-Amulet Action:**
 
-(and (object-at ?agent cave)
-      (not (object-at ?agent amulet))
-      (not (object-at ?agent golem))
-      (not (object-at ?agent secret-door)))
-```
+The adventurer must first defeat the golem and possess the rune before acquiring the amulet.
