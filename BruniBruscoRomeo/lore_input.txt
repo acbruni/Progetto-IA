@@ -1,0 +1,81 @@
+== THE SHADOW AMULET ==
+
+---
+
+### == QUEST DESCRIPTION ==
+
+**Starting State:**
+You are an adventurer Newly arrived in the town of **Silvercreek**, a peaceful settlement bordering the mysterious **Eldenwood Forest**. Rumors speak of an ancient artifact—the **Shadow Amulet**—hidden deep within the **Dark Hollow Cave**. However, the cave entrance is sealed by ancient magic that requires a lost relic to break.
+
+**Final Objective:**
+Obtain the **Rune of Passage**, use it to dispel the magical barrier at the cave entrance, explore the cave to locate the **Ancient Druidic Temple**, find the hidden **Temple Key**, and unlock the **Secret Door** within the temple.
+
+---
+
+### == OBSTACLES ==
+
+* A **colossal stone golem**, animated by forgotten spells, guards the path leading to the cave.
+* The **magical barrier** at the cave entrance can only be broken using the **Rune of Passage**, a lost relic said to lie in a **hidden druidic glade** deep within Eldenwood.
+* Inside the **Dark Hollow Cave** lie **deadly traps**, powerful **illusions**, and remnants of ancient magic.
+* The **Ancient Druidic Temple** contains a sacred altar and a **sacred stone** which may be required to **activate** the Rune of Passage.
+
+---
+
+### == CONTEXT AND BACKGROUND ==
+
+**World:**
+The realm of **Eldoria**, a land of ancient ruins, mystical creatures, and residual magic. Once governed by a council of mage-kings, it is now fragmented into free cities, isolated strongholds, and untamed wilderness.
+
+**Characters:**
+
+* **The Adventurer**: A lone wanderer with a mysterious past, seeking glory or redemption.
+* **Guardian Golem**: A massive construct left by the mage-kings, designed to prevent entry to sacred or dangerous places.
+* **Sage Elara**: A reclusive scholar known for her knowledge of ancient lore. She believes the Shadow Amulet could help protect Silvercreek from looming threats.
+
+**Locations:**
+
+* **Silvercreek**: A peaceful town at the edge of Eldenwood, serving as a hub for travelers, scholars, and adventurers.
+* **Cave Entrance**: A moss-covered stone archway carved into the cliffs beyond the forest, sealed with ancient magic.
+* **Dark Hollow Cave**: A sprawling network of natural tunnels filled with traps, illusions, and ancient echoes.
+* **Eldenwood Forest**: A dense, magical woodland that hides the forgotten druidic glade and temple.
+* **Ancient Druidic Temple**: A hidden sanctuary believed to hold both the sacred stone and the key to the secret door inside the cave.
+
+**Key Items:**
+
+* **Shadow Amulet**: A powerful relic that grants immense power at a cost—it slowly corrupts the bearer’s will.
+* **Rune of Passage**: A magical stone inscribed with ancient runes. When activated, it dispels the cave’s magical barrier.
+* **Temple Key**: A hidden artifact within the druidic temple, required to unlock the secret door deep within the cave.
+* **Sacred Stone**: An energy focus on the altar of the druidic temple, needed to activate the Rune of Passage.
+
+---
+
+### == LOGICAL STRUCTURE (for planning systems) ==
+
+**Initial Facts:**
+
+* The adventurer is in Silvercreek.
+* The cave is sealed by a magical barrier.
+* The Rune of Passage is not in the adventurer’s inventory.
+* The Rune is hidden in the druidic glade inside Eldenwood.
+* The druidic glade is guarded and concealed.
+* The Shadow Amulet lies beyond the sealed cave and behind the secret door in the temple.
+
+**Goal State:**
+
+* Adventurer has unlocked the secret door in the temple.
+* Adventurer has acquired the Shadow Amulet.
+
+**Preconditions and Effects:**
+
+* To enter the cave: Must possess and activate the Rune of Passage.
+* To activate the Rune: Must place it on the altar with the Sacred Stone.
+* To enter the temple: Must defeat/evade the Guardian Golem and find the glade.
+* To open the secret door: Must find the Temple Key inside the temple.
+
+**Adjusted Precondition for Acquire-Amulet Action:**
+
+(and (object-at ?agent cave)
+      (not (object-at ?agent amulet))
+      (not (object-at ?agent golem))
+      (not (object-at ?agent secret-door)))
+```
