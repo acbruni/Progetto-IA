@@ -1,243 +1,229 @@
 import os
 import subprocess
-# Importazioni da LangChain
-from langchain_community.chat_models import ChatOllama
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser, BaseOutputParser
-from langchain_core.exceptions import OutputParserException
+from langchain_ollama import OllamaLLM
+from langchain_core.prompts import PromptTemplate
 
-# --- CONFIGURAZIONE (invariata) ---
-LORE_FILE = '/Users/annachiarabruni/Progetti/Progetto IA/BruniBruscoRomeo/lore_input.txt'
-DOMAIN_PDDL_FILE = '/Users/annachiarabruni/Progetti/Progetto IA/domain.pddl'
-PROBLEM_PDDL_FILE = '/Users/annachiarabruni/Progetti/Progetto IA/problem.pddl'
-FAST_DOWNWARD_PATH = '/Users/annachiarabruni/downward/fast-downward.py'
-MODEL_FOR_CODE = 'codellama'
-MODEL_FOR_LOGIC = 'llama3.2'
+# ===============================
+# CONFIGURAZIONE INIZIALE
+# ===============================
+OLLAMA_MODEL = "llama3.2"   # Modello Ollama
+LORE_FILE = "/Users/annachiarabruni/Progetti/Progetto IA/BruniBruscoRomeo/lore_input.txt"  # File di input della lore (testo)
+PDDL_DOMAIN_FILE = "/Users/annachiarabruni/Progetti/Progetto IA/BruniBruscoRomeo/pddl_code/domain.pddl"  # Output PDDL dominio
+PDDL_PROBLEM_FILE = "/Users/annachiarabruni/Progetti/Progetto IA/BruniBruscoRomeo/pddl_code/problem.pddl"  # Output PDDL problema
+FAST_DOWNWARD_PATH = "/Users/annachiarabruni/downward/fast-downward.py" 
+HTML_OUTPUT_FILE = "quest_interactive.html"  # Output HTML finale
 
-# --- 1. PARSER PERSONALIZZATO PER L'OUTPUT PDDL ---
-# Questo è un grande vantaggio di LangChain: creiamo un parser per strutturare l'output.
-class PddlOutputParser(BaseOutputParser):
-    """Estrae i blocchi di codice PDDL dal testo di output dell'LLM."""
-    def parse(self, text: str):
-        try:
-            domain_part = text.split('---domain.pddl---')[1].split('---problem.pddl---')[0].strip()
-            problem_part = text.split('---problem.pddl---')[1].strip()
-            if not domain_part or not problem_part:
-                raise OutputParserException("Marcatori PDDL trovati ma sezioni vuote.")
-            return {"domain": domain_part, "problem": problem_part}
-        except IndexError:
-            raise OutputParserException(f"Impossibile trovare i marcatori '---domain.pddl---' e '---problem.pddl---' nell'output: {text}")
+# ===============================
+# FUNZIONI UTILI
+# ===============================
 
-# --- 2. FUNZIONI REFACTORIZZATE CON LANGCHAIN ---
+def print_step(msg):
+    """Stampa un messaggio per evidenziare l'avanzamento del processo"""
+    print(f"\n=== {msg} ===\n")
 
-def generate_pddl_from_lore(lore_text):
-    """Chiama Ollama tramite LangChain per generare i file PDDL."""
-    print(f"-> Contatto Ollama ({MODEL_FOR_CODE}) via LangChain per generare il PDDL...")
-    
-    # Definiamo il template del prompt in modo strutturato
-    prompt_template = ChatPromptTemplate.from_template(
-        """Basandoti sulla seguente lore, genera un file di dominio PDDL e un file di problema PDDL.
+def carica_lore(percorso):
+    """Carica la lore dal file di testo"""
+    with open(percorso, "r") as f:
+        return f.read()
 
-        Assicurati che il codice generato sia sintatticamente corretto e semanticamente valido per il planner Fast Downward.
+def salva_file(contenuto, percorso):
+    """Salva un contenuto di testo su file"""
+    with open(percorso, "w") as f:
+        f.write(contenuto)
 
-        Durante la generazione, rispetta le seguenti direttive per garantire la compatibilità:
-
-        Requisiti del Dominio (:requirements):
-
-        Utilizza solo requisiti supportati da Fast Downward, come :strips, :typing, :adl, :conditional-effects, e :negative-preconditions.
-        Evita requisiti non supportati come :numeric-fluents (eccetto per i costi delle azioni in (:metric)) o :durative-actions.
-        Tipi (:types):
-
-        Definisci una gerarchia di tipi chiara e semplice.
-        Azioni e Effetti:
-
-        Struttura le azioni con parametri, precondizioni (:precondition) ed effetti (:effect).
-        Gli effetti condizionali (when) sono permessi, ma evita annidamenti complessi.
-        Le precondizioni possono includere congiunzioni (and), disgiunzioni (or) e negazioni (not).
-        File di Problema:
-
-        Definisci chiaramente tutti gli oggetti in (:objects).
-        Inizializza lo stato del mondo in (:init) in modo coerente con la lore, usando solo i predicati definiti nel dominio.
-        Definisci un obiettivo (:goal) raggiungibile e significativo.
-        FORMATO DI OUTPUT:
-
-        Usa il marcatore ---domain.pddl--- per iniziare il file di dominio.
-        Usa il marcatore ---problem.pddl--- per iniziare il file di problema.
-        Aggiungi un commento PDDL (usando ;) dopo ogni riga di codice significativa per spiegare la sua funzione e il suo collegamento con la lore.
-
-        LORE:
-        {lore}"""
-    )
-    
-    # Inizializziamo il modello LLM
-    llm = ChatOllama(model=MODEL_FOR_CODE)
-    
-    # Creiamo la "catena" che collega prompt, modello e parser
-    chain = prompt_template | llm | PddlOutputParser()
-    
+def valida_pddl(domain_path, problem_path, fast_downward_path):
+    """Esegue Fast Downward e restituisce True/False se trova una soluzione"""
     try:
-        # Eseguiamo la catena
-        pddl_output = chain.invoke({"lore": lore_text})
-        
-        # Salviamo i file usando l'output già parsato
-        with open(DOMAIN_PDDL_FILE, 'w') as f:
-            f.write(pddl_output['domain'])
-        with open(PROBLEM_PDDL_FILE, 'w') as f:
-            f.write(pddl_output['problem'])
-            
-        print("-> File PDDL generati correttamente.")
-        return True
-    except Exception as e:
-        print(f"!! Errore durante l'esecuzione della catena LangChain: {e}")
-        return False
-
-def get_refinement_suggestion(lore_text, pddl_domain, pddl_problem):
-    """Chiede all'agente di riflessione (via LangChain) perché il PDDL non è valido."""
-    print(f"-> Chiedo un suggerimento al Reflection Agent ({MODEL_FOR_LOGIC}) via LangChain...")
-    
-    prompt_template = ChatPromptTemplate.from_template(
-        """Il seguente modello PDDL, basato sul lore fornito, non è risolvibile.
-        Analizza il lore e il PDDL per identificare l'incoerenza logica.
-        Suggerisci una singola, specifica e concisa modifica da fare al testo del file di lore per risolvere il problema.
-
-        LORE: {lore}
-        DOMAIN PDDL: {domain}
-        PROBLEM PDDL: {problem}"""
-    )
-    llm = ChatOllama(model=MODEL_FOR_LOGIC)
-    # Per un output di tipo stringa, usiamo lo StrOutputParser
-    chain = prompt_template | llm | StrOutputParser()
-    
-    try:
-        suggestion = chain.invoke({
-            "lore": lore_text,
-            "domain": pddl_domain,
-            "problem": pddl_problem
-        })
-        return suggestion
-    except Exception as e:
-        print(f"!! Errore durante la richiesta di suggerimento: {e}")
-        return None
-
-def apply_refinement_to_lore(lore_text, suggestion):
-    """Usa LangChain per riscrivere il lore applicando il suggerimento."""
-    print(f"-> Applico la modifica al lore con {MODEL_FOR_LOGIC} via LangChain...")
-    
-    prompt_template = ChatPromptTemplate.from_template(
-        """Riscrivi il seguente documento di lore, incorporando questa modifica: '{suggestion}'.
-        Mantieni la formattazione originale con le intestazioni '== ... =='.
-        Non aggiungere commenti o testo extra, solo il lore aggiornato.
-
-        LORE ORIGINALE:
-        {lore}"""
-    )
-    llm = ChatOllama(model=MODEL_FOR_LOGIC)
-    chain = prompt_template | llm | StrOutputParser()
-    
-    try:
-        new_lore = chain.invoke({"lore": lore_text, "suggestion": suggestion})
-        with open(LORE_FILE, 'w') as f:
-            f.write(new_lore)
-        print("-> File di lore aggiornato.")
-    except Exception as e:
-        print(f"!! Errore durante l'aggiornamento del lore: {e}")
-
-def generate_html_game():
-    """Usa LangChain per generare il gioco HTML interattivo."""
-    print("\n--- AVVIO FASE 2: Generazione Gioco HTML con LangChain ---")
-    
-    with open(LORE_FILE, 'r') as f: lore_final = f.read()
-    with open(DOMAIN_PDDL_FILE, 'r') as f: domain_pddl = f.read()
-    with open(PROBLEM_PDDL_FILE, 'r') as f: problem_pddl = f.read()
-    
-    prompt_template = ChatPromptTemplate.from_template(
-        """Sei un esperto sviluppatore front-end. Genera una singola pagina HTML5 autonoma
-        con CSS e JavaScript interni.
-        Questa pagina deve essere un gioco narrativo interattivo basato sui seguenti dati.
-        - Usa il LORE per i testi descrittivi.
-        - Usa il PDDL per la logica di gioco in JavaScript. Il JS deve tracciare lo stato del gioco.
-        - Il gioco deve essere stilisticamente piacevole, con un tema fantasy.
-
-        LORE: {lore}
-        DOMAIN PDDL: {domain}
-        PROBLEM PDDL: {problem}"""
-    )
-    llm = ChatOllama(model=MODEL_FOR_CODE, temperature=0.5)
-    chain = prompt_template | llm | StrOutputParser()
-
-    try:
-        print(f"-> Contatto Ollama ({MODEL_FOR_CODE}) per generare l'HTML...")
-        html_content = chain.invoke({
-            "lore": lore_final,
-            "domain": domain_pddl,
-            "problem": problem_pddl
-        })
-        
-        if html_content.startswith("```html"):
-            html_content = html_content[7:-4].strip()
-
-        with open('storia_interattiva.html', 'w') as f:
-            f.write(html_content)
-        
-        print("✅ FASE 2 COMPLETATA: 'storia_interattiva.html' generato!")
-        return True
-    except Exception as e:
-        print(f"!! Errore durante la generazione dell'HTML: {e}")
-        return False
-
-# --- 3. WORKFLOW PRINCIPALE (logica invariata, ma chiama le nuove funzioni) ---
-
-def validate_pddl():
-    """Funzione di validazione (invariata)."""
-    if not os.path.exists(FAST_DOWNWARD_PATH):
-        print(f"!! Errore: Planner non trovato in '{FAST_DOWNWARD_PATH}'.")
-        return False
-    print("-> Avvio validazione con Fast Downward...")
-    command = ['python3', FAST_DOWNWARD_PATH, DOMAIN_PDDL_FILE, PROBLEM_PDDL_FILE, '--search', 'astar(lmcut())']
-    result = subprocess.run(command, capture_output=True, text=True)
-    if "Solution found." in result.stdout:
-        print("✅ Validazione PDDL riuscita: soluzione trovata!")
-        return True
-    else:
-        print("❌ Validazione PDDL fallita: nessuna soluzione trovata.")
-        print(f"Output del planner:\n{result.stdout}\n{result.stderr}")
-        return False
-
-def run_phase_1():
-    """Esegue l'intero workflow della Fase 1 usando le funzioni LangChain."""
-    max_attempts = 5
-    for attempt in range(max_attempts):
-        print(f"\n--- TENTATIVO {attempt + 1}/{max_attempts} ---")
-        with open(LORE_FILE, 'r') as f:
-            current_lore = f.read()
-        if not generate_pddl_from_lore(current_lore):
-            continue
-        if validate_pddl():
-            print("\n🎉 FASE 1 COMPLETATA: PDDL valido generato e verificato!")
-            return True
-        
-        print("-> Avvio l'agente di riflessione.")
-        with open(DOMAIN_PDDL_FILE, 'r') as f: domain_content = f.read()
-        with open(PROBLEM_PDDL_FILE, 'r') as f: problem_content = f.read()
-
-        suggestion = get_refinement_suggestion(current_lore, domain_content, problem_content)
-        if not suggestion:
-            continue
-
-        print("\n🤔 SUGGERIMENTO DALL'IA:")
-        print(suggestion)
-        user_choice = input("Vuoi applicare questa modifica? (s/n): ").lower()
-        if user_choice == 's':
-            apply_refinement_to_lore(current_lore, suggestion)
+        cmd = [
+            "python3", fast_downward_path,
+            domain_path, problem_path,
+            "--search-options", "--search", "astar(blind())"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if "Solution found!" in result.stdout:
+            return True, result.stdout
         else:
-            print("Modifica rifiutata. Interruzione del processo.")
-            return False
-            
-    print("\n!! Raggiunto il numero massimo di tentativi.")
-    return False
+            return False, result.stdout
+    except Exception as e:
+        return False, str(e)
 
-if __name__ == '__main__':
-    if run_phase_1():
-        generate_html_game()
-    else:
-        print("\nProcesso interrotto. Impossibile generare il gioco.")
+def extract_between(text, start, end):
+    """Estrae una porzione di testo tra due delimitatori"""
+    s = text.find(start)
+    e = text.find(end)
+    if s == -1 or e == -1:
+        return ""
+    return text[s+len(start):e]
+
+# ===============================
+# PROMPT PER LLM (molto dettagliati)
+# ===============================
+
+PDDL_PROMPT = """
+You are an expert in Automated Planning and Narrative Design. Given the following lore document describing a fantasy quest and design constraints, your task is to generate a **logically correct PDDL domain file and PDDL problem file** for the adventure, in strict compliance with classical planning conventions.  
+
+**Input Lore Document:**  
+{lore}
+
+**Instructions:**
+- The domain file must define predicates, actions, and types coherent with the quest's entities, constraints, and possible player actions.
+- The problem file must correctly encode the initial state and the goal, as well as all relevant objects/entities.
+- Respect the branching factor and depth constraints as much as possible.
+- Make sure there are no logical contradictions: the initial state must allow at least one valid plan to reach the goal.
+
+**Output format:**  
+Write the **domain PDDL first** (fully valid), then the **problem PDDL**. Clearly mark the start and end of each file with a delimiter:  
+`===DOMAIN START===` ... `===DOMAIN END===`  
+`===PROBLEM START===` ... `===PROBLEM END===`
+
+Do not add any additional text outside these delimiters.  
+"""
+
+REFLECTION_PROMPT = """
+You are a Reflection Agent specializing in fixing logical errors in PDDL code for interactive narrative planning.  
+Given the lore document and the current PDDL domain/problem files, carefully analyze and identify any logical inconsistencies or narrative gaps that prevent planning.  
+Suggest *specific* corrections (clearly explain what to change and why), then regenerate the corrected PDDL files, again with inline comments.  
+Wrap your new files with the delimiters:
+`===DOMAIN START===` ... `===DOMAIN END===`
+`===PROBLEM START===` ... `===PROBLEM END===`
+Only provide the corrected PDDL code with the explanations as inline comments.
+
+**Lore:**  
+{lore}
+
+**Domain PDDL:**  
+{domain}
+
+**Problem PDDL:**  
+{problem}
+"""
+
+HTML_PROMPT = """
+You are a web developer and narrative designer.  
+Given the following adventure lore and the finalized PDDL model (domain + problem), generate a single HTML file that lets users play the quest interactively.  
+The interface must:
+- Present the story state, player choices (based on available actions), and narrative context at each step.
+- Update the state and available actions after each choice.
+- Include clear narrative text and titles.
+- Add comments in the HTML to explain each section.
+- You can use basic JavaScript for interactivity.
+
+**Lore:**  
+{lore}
+
+**Domain PDDL:**  
+{domain}
+
+**Problem PDDL:**  
+{problem}
+"""
+
+# ===============================
+# FASI DI GENERAZIONE PDDL e REFLECTION
+# ===============================
+
+def genera_pddl(llm, lore):
+    """Genera i file PDDL (dominio e problema) a partire dalla lore"""
+    prompt = PromptTemplate.from_template(PDDL_PROMPT).format(lore=lore)
+    output = llm.invoke(prompt)
+    domain = extract_between(output, "===DOMAIN START===", "===DOMAIN END===")
+    problem = extract_between(output, "===PROBLEM START===", "===PROBLEM END===")
+    return domain.strip(), problem.strip()
+
+def rifinisci_pddl_raw(llm, lore, domain, problem):
+    """
+    Invoca il Reflection Agent e ritorna il testo completo con le correzioni e spiegazioni,
+    per permettere la valutazione umana prima dell'eventuale applicazione automatica.
+    """
+    prompt = PromptTemplate.from_template(REFLECTION_PROMPT).format(
+        lore=lore, domain=domain, problem=problem)
+    return llm.invoke(prompt)
+
+# ===============================
+# MAIN WORKFLOW
+# ===============================
+
+def main():
+    print_step("INIZIO DEL PROCESSO QuestMaster - Fase 1: Story Generation")
+    # Inizializza LLM
+    llm = OllamaLLM(model=OLLAMA_MODEL)
+
+    print_step("Caricamento della lore")
+    lore = carica_lore(LORE_FILE)
+    tentativi = 0
+    successo = False
+
+    # Ciclo massimo di 5 tentativi (generazione + riflessioni)
+    while tentativi < 5:
+        tentativi += 1
+        if tentativi == 1:
+            # Primo tentativo: generazione classica dei PDDL
+            print_step(f"Generazione dei file PDDL (tentativo {tentativi})")
+            domain, problem = genera_pddl(llm, lore)
+        else:
+            # Tentativi successivi: intervento del Reflection Agent
+            print_step(f"Invocazione del Reflection Agent per la correzione dei file PDDL (tentativo {tentativi})")
+            riflessione_output = rifinisci_pddl_raw(llm, lore, domain, problem)
+            # Stampa all'utente la proposta completa del Reflection Agent
+            print("\n--- PROPOSTA DEL REFLECTION AGENT (da valutare) ---\n")
+            print(riflessione_output)
+            print("\n--- FINE PROPOSTA ---\n")
+
+            # Scelta utente: 1=applica, 2=modifica manuale, 3=interrompi
+            scelta = ""
+            while scelta not in ['1', '2', '3']:
+                print("Scegli un'opzione:")
+                print("[1] Applica automaticamente la correzione proposta dal Reflection Agent")
+                print("[2] Modifica manualmente i file e chiudi l'esecuzione")
+                print("[3] Interrompi l'esecuzione e esci")
+                scelta = input("Inserisci 1, 2 o 3: ").strip()
+
+            if scelta == '2':
+                print("Esecuzione terminata: puoi modificare manualmente i file PDDL.")
+                return
+            elif scelta == '3':
+                print("Esecuzione interrotta dall'utente.")
+                return
+            # Se l'utente sceglie 1, applica direttamente le modifiche del Reflection Agent
+            domain = extract_between(riflessione_output, "===DOMAIN START===", "===DOMAIN END===")
+            problem = extract_between(riflessione_output, "===PROBLEM START===", "===PROBLEM END===")
+
+        # Salva i file PDDL aggiornati
+        salva_file(domain, PDDL_DOMAIN_FILE)
+        salva_file(problem, PDDL_PROBLEM_FILE)
+
+        print_step("Validazione dei file PDDL tramite Fast Downward")
+        valido, log = valida_pddl(PDDL_DOMAIN_FILE, PDDL_PROBLEM_FILE, FAST_DOWNWARD_PATH)
+        if valido:
+            print_step("Validazione superata: il PDDL consente almeno una soluzione.")
+            successo = True
+            break
+        else:
+            print_step("Il modello PDDL NON è valido: non esiste alcuna soluzione.")
+            print("Log del planner:")
+            print(log)
+            # Alla prossima iterazione verrà invocato il Reflection Agent (se non si raggiunge il max tentativi)
+
+    if not successo:
+        print_step("Fase 1 NON completata con successo. Nessun modello PDDL valido trovato.")
+        return
+
+    # ======= FINE FASE 1 =======
+    print_step("FASE 1 COMPLETATA: PDDL e lore finale pronti.")
+    print_step("INIZIO DELLA FASE 2: Generazione del gioco HTML interattivo")
+
+    # ===============================
+    # FASE 2: Generazione HTML interattivo
+    # ===============================
+    prompt_html = PromptTemplate.from_template(HTML_PROMPT).format(
+        lore=lore, domain=domain, problem=problem
+    )
+    html_output = llm.invoke(prompt_html)
+    salva_file(html_output, HTML_OUTPUT_FILE)
+    print_step(f"FASE 2 COMPLETATA: File HTML '{HTML_OUTPUT_FILE}' generato con successo.")
+
+# ===============================
+# AVVIO DEL PROGRAMMA PRINCIPALE
+# ===============================
+if __name__ == "__main__":
+    main()

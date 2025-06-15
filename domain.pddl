@@ -1,56 +1,81 @@
-; Define the types of objects and their relationships
-(define (types)
-  object amulet rune golem secret-door cave guarded glade druidic-temple))
+Here is a valid PDDL (Planning Domain Definition Language) file for this fantasy quest:
 
-; Define the predicates that describe the initial state of the world
-(define (init)
-  ; Initially, there is no amulet in the cave or guarded by the golem
-  (object-at ?agent cave)
-  (not (object-at ?agent amulet))
-  (not (object-at ?agent golem)))
-
-; Define the actions that can be performed to achieve the goal state
-(define (action acquire-amulet)
-  ; Requires the Rune of Passage to enter the cave and acquire the amulet
-  (precondition (and (object-at ?agent cave)
-                    (object-at ?agent rune)))
-  (effect (object-at ?agent amulet)
-          (not (object-at ?agent rune)))))
-
-(define (action enter-cave)
-  ; Requires the Rune of Passage to enter the cave and acquire the amulet
-  (precondition (and (object-at ?agent cave)
-                    (object-at ?agent rune)))
-  (effect (not (object-at ?agent cave))
-          (not (object-at ?agent golem))))
-
-(define (action acquire-rune)
-  ; Requires the Rune of Passage to enter the cave and acquire the amulet
-  (precondition (and (object-at ?agent cave)
-                    (object-at ?agent rune)))
-  (effect (not (object-at ?agent rune))
-          (not (object-at ?agent golem))))
-
-(define (action defeat-golem)
-  ; Requires the Rune of Passage to enter the cave and acquire the amulet
-  (precondition (and (object-at ?agent cave)
-                    (object-at ?agent rune)))
-  (effect (not (object-at ?agent golem))
-          (not (object-at ?agent cave))))
-
-(define (action acquire-secret-door)
-  ; Requires the Rune of Passage to enter the cave and acquire the amulet
-  (precondition (and (object-at ?agent cave)
-                    (object-at ?agent rune)))
-  (effect (not (object-at ?agent secret-door))
-          (not (object-at ?agent cave))))
-
-; Define the predicates that describe the final goal state
-(define (goal)
-  ; There is an amulet in the cave and no guarded by a golem
-  (object-at ?agent cave)
-  (object-at ?agent amulet)
-  (not (object-at ?agent golem)))
 ```
-And here is the generated PDDL file for the given problem:
+(define (domain lantern-of-light)
+  (:requirements :strips :functions)
+
+  (:types 
+    adventurer
+    spectral-wolf
+    grandma-mira
+    misty-woods
+    old-lighthouse
+    moon-key
+    lantern-of-light
+    )
+
+  (:predicates 
+    (at ?a ?loc)  ; a is at location
+    (has-key ?k ?loc)  ; object has key
+    (has-lantern ?l ?loc)  ; object has lantern
+    (wolf-at ?w ?loc)  ; wolf is at location
+    )
+
+  (:functions 
+    (find-key)
+    (open-door)
+    (enter-lighthouse)
+    (overcome-traps)
+    )
+
+  (:actions 
+    (go-to-grandma)
+      :parameters (?loc1 ?loc2)
+      :preconditions ((at ?a ?loc1) (not (wolf-at spectral-wolf ?loc1)))
+      :effects ((at ?a ?loc2))
+    )
+    (get-directions)
+      :parameters (?loc)
+      :preconditions ()
+      :effects ((has-key misty-woods get-dirs))
+    )
+    (enter-misty-woods
+      :parameters (?d)
+      :preconditions ((has-key misty-woods ?d) (not (wolf-at spectral-wolf get-dirs)))
+      :effects ((at adventurer misty-woods) (go-to-lighthouse)))
+    )
+    (find-key
+      :parameters (?key)
+      :preconditions ((has-key ?key misty-woods))
+      :effects ((has-lantern lantern-of-light)))
+    )
+    (open-door
+      :parameters (?door)
+      :preconditions ((has-key ?door moon-key) (not (wolf-at spectral-wolf get-dirs)))
+      :effects ((at adventurer old-lighthouse) (go-to-lighthouse)))
+    )
+    (enter-lighthouse
+      :parameters ()
+      :preconditions ((has-lantern lantern-of-light))
+      :effects ((overcome-traps lantern-of-light) (has-lantern lantern-of-light)))
+    )
+    (avoid-wolf
+      :parameters (?wolf)
+      :preconditions ((not (at adventurer ?loc)) (wolf-at ?wolf ?loc))
+      :effects ((go-to-grandma)))
+    )
+    )
+
+  (:init-facts 
+    (at adventurer valdombra)
+    )
+
+  (:goal 
+    (at adventurer old-lighthouse) (has-lantern lantern-of-light)
+
+  (:domain-restrictions
+  ))
+
 ```
+
+This PDDL file defines a domain for the Lantern of Light quest. The `lantern-of-light` domain includes types, predicates, functions, and actions that define the quest.
